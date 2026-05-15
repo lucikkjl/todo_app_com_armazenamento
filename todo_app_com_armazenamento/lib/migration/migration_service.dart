@@ -3,26 +3,20 @@ import 'package:hive/hive.dart';
 import '../models/todo.dart';
 
 class MigrationService {
-  static const CURRENT_VERSION = 2;
-
   Future<void> migrate() async {
     final prefs = await SharedPreferences.getInstance();
-    final version = prefs.getInt('app_version') ?? 1;
+    final isMigrated = prefs.getBool('migrated_v1_to_v2') ?? false;
 
-    if (version < 2) {
-      await _migrateV1toV2(prefs);
-      await prefs.setInt('app_version', 2);
+    if (!isMigrated) {
+      final oldTodos = prefs.getStringList('v1_todos');
+      if (oldTodos != null && oldTodos.isNotEmpty) {
+        final box = Hive.box<Todo>('todos');
+        for (var title in oldTodos) {
+          await box.add(Todo(title: title));
+        }
+        await prefs.remove('v1_todos');
+      }
+      await prefs.setBool('migrated_v1_to_v2', true);
     }
-  }
-
-  Future<void> _migrateV1toV2(SharedPreferences prefs) async {
-    final oldTodos = prefs.getStringList('todos') ?? [];
-    final box = Hive.box<Todo>('todos');
-
-    for (var title in oldTodos) {
-      await box.add(Todo(title: title));
-    }
-
-    await prefs.remove('todos');
   }
 }
